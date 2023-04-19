@@ -28,8 +28,8 @@ public class GeneralModule : ApplicationCommandModule<SlashCommandContext>
         return RespondAsync(InteractionCallback.ChannelMessageWithSource
             (
                 $"""
-                    Invite me to your server with this link:
-                    {PyraBot.Configuration.InviteLink}
+                    Invite me to your server with [this link]({PyraBot.Configuration.InviteLink}):
+                    Or click my name, then click the **Add to Server** button
                 """
             ));
     }
