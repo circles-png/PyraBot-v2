@@ -136,7 +136,7 @@ public class MusicModule : ApplicationCommandModule<SlashCommandContext>
             new ProcessStartInfo()
             {
                 FileName = "sh",
-                Arguments = $"-c \"yt-dlp ytsearch1:\\\"{query}\\\" -o - | ffmpeg -i pipe:0 -ac 2 -f s16le -ar 48000 pipe:1\"",
+                Arguments = $"-c \"yt-dlp ytsearch1:\\\"{query}\\\" -f bestaudio -o - | ffmpeg -i pipe:0 -ac 2 -f s16le -ar 48000 pipe:1\"",
                 RedirectStandardOutput = true
             }
         )!;
