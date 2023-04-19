@@ -17,7 +17,7 @@ public class GeneralModule : ApplicationCommandModule<SlashCommandContext>
                                 ?? throw new ("I couldn't get the latency. I'm either offline or Discord is down.")
                         )
                         .TotalMilliseconds
-                    }ms from me to Discord.
+                    }ms (from me to Discord).
                 """
             ));
     }
@@ -29,7 +29,7 @@ public class GeneralModule : ApplicationCommandModule<SlashCommandContext>
             (
                 $"""
                     Invite me to your server with [this link]({PyraBot.Configuration.InviteLink}):
-                    Or click my name, then click the **Add to Server** button
+                    Or click my name, then click the **Add to Server** button!
                 """
             ));
     }
