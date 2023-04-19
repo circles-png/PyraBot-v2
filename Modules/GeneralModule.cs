@@ -11,13 +11,10 @@ public class GeneralModule : ApplicationCommandModule<SlashCommandContext>
         return RespondAsync(InteractionCallback.ChannelMessageWithSource
             (
                 $"""
-                    Pong! {
-                        (
+                    Pong! {(
                             Context.Client.Latency
-                                ?? throw new ("I couldn't get the latency. I'm either offline or Discord is down.")
-                        )
-                        .TotalMilliseconds
-                    }ms (from me to Discord).
+                                ?? throw new("I couldn't get the latency. I'm either offline or Discord is down.")
+                        ).TotalMilliseconds}ms (from me to Discord).
                 """
             ));
     }

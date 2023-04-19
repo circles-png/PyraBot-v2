@@ -25,15 +25,14 @@ internal class PyraBot
                     .GetProperties()
                     .Any(property => property.GetValue(configuration) is null)
             )
-                throw new InvalidOperationException("Configuration could not be loaded.");
+                throw new("Configuration could not be loaded.");
             return configuration;
         }
     }
     private static async Task Main()
     {
-        var configuration = Configuration;
         var client = new GatewayClient(
-            new Token(TokenType.Bot, configuration.Token!),
+            new(TokenType.Bot, Configuration.Token!),
             new()
             {
                 Intents = GatewayIntents.AllNonPrivileged
@@ -49,7 +48,7 @@ internal class PyraBot
         await
             (
                 await client.Rest
-                    .GetGuildAsync((ulong)configuration.GuildID!)
+                    .GetGuildAsync((ulong)Configuration.GuildID!)
             )
             .BulkOverwriteApplicationCommandsAsync(575622700001918976, new List<ApplicationCommandProperties>(), new());
 
@@ -75,8 +74,8 @@ internal class PyraBot
                 await (
                     interaction switch
                     {
-                        SlashCommandInteraction slashCommandInteraction => slashCommandService.ExecuteAsync(new SlashCommandContext(slashCommandInteraction, client)),
-                        MessageCommandInteraction messageCommandInteraction => messageCommandService.ExecuteAsync(new MessageCommandContext(messageCommandInteraction, client)),
+                        SlashCommandInteraction slashCommandInteraction => slashCommandService.ExecuteAsync(new(slashCommandInteraction, client)),
+                        MessageCommandInteraction messageCommandInteraction => messageCommandService.ExecuteAsync(new(messageCommandInteraction, client)),
                         _ => throw new("Invalid interaction.")
                     }
                 );
