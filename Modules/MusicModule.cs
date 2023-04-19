@@ -1,14 +1,16 @@
+using System.Diagnostics;
 using NetCord;
 using NetCord.Gateway;
 using NetCord.Gateway.Voice;
+using NetCord.Services;
 using NetCord.Services.ApplicationCommands;
 using Serilog;
+using Serilog.Core;
 
 namespace PyraBot.Modules;
 
 public class MusicModule : ApplicationCommandModule<SlashCommandContext>
 {
-    private record VoiceInstance(VoiceClient VoiceClient, ulong ChannelId);
     private static Dictionary<ulong, VoiceInstance> voiceInstances = new();
 
     private static async Task<VoiceClient> JoinAsync(GatewayClient client, ulong guildId, ulong channelId)
@@ -79,7 +81,7 @@ public class MusicModule : ApplicationCommandModule<SlashCommandContext>
         }
     }
 
-    [SlashCommand("join", "Tell me to join your voice channel.", GuildId = 943394644786561064)]
+    [SlashCommand("join", "Tell me to join a voice channel.", GuildId = 943394644786561064)]
     public async Task Join(VoiceGuildChannel? channel = null)
     {
         if (channel is null)
@@ -116,5 +118,43 @@ public class MusicModule : ApplicationCommandModule<SlashCommandContext>
         await voiceInstance.VoiceClient.CloseAsync();
         voiceInstances.Remove(Context.Guild.Id);
         await RespondAsync(InteractionCallback.ChannelMessageWithSource("Left the voice channel!"));
+    }
+
+    [SlashCommand("play", "Play some fire beats in your voice channel!")]
+    public async Task PlayAsync([SlashCommandParameter(Name = "query", Description = "Text to search with.")] string query)
+    {
+        if (!voiceInstances.ContainsKey(Context.Guild!.Id))
+            throw new("I need to be in a voice channel first!");
+        await RespondAsync(InteractionCallback.ChannelMessageWithSource($"Searching for \"**{query}**\"..."));
+
+        var voiceInstance = voiceInstances[Context.Guild!.Id];
+        var outputStream = voiceInstance.OutputStream = voiceInstance.VoiceClient.CreateOutputStream();
+
+        OpusEncodeStream opusStream = new(outputStream, VoiceChannels.Stereo, OpusApplication.Audio);
+
+        using var ffmpeg = Process.Start(
+            new ProcessStartInfo()
+            {
+                FileName = "sh",
+                Arguments = $"-c \"yt-dlp ytsearch1:\\\"{query}\\\" -o - | ffmpeg -i pipe:0 -ac 2 -f s16le -ar 48000 pipe:1\"",
+                RedirectStandardOutput = true
+            }
+        )!;
+
+        await ffmpeg.StandardOutput.BaseStream.CopyToAsync(opusStream);
+        await opusStream.FlushAsync();
+    }
+
+    private struct VoiceInstance
+    {
+        public VoiceClient VoiceClient { get; }
+        public ulong ChannelId { get; }
+        public Stream? OutputStream { get; set; }
+
+        public VoiceInstance(VoiceClient voiceClient, ulong channelId)
+        {
+            VoiceClient = voiceClient;
+            ChannelId = channelId;
+        }
     }
 }
