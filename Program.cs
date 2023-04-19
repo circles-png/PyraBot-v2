@@ -2,6 +2,7 @@
 using System.Text.Json;
 using NetCord;
 using NetCord.Gateway;
+using NetCord.Rest;
 using NetCord.Services.ApplicationCommands;
 using PyraBot.Models;
 
@@ -45,6 +46,13 @@ internal class Program
             return default;
         };
 
+        await 
+            (
+                await client.Rest
+                    .GetGuildAsync((ulong)configuration.GuildID!)
+            )
+            .BulkOverwriteApplicationCommandsAsync(575622700001918976, new List<ApplicationCommandProperties>(), new());
+
         var slashCommandService = new ApplicationCommandService<SlashCommandContext>();
         var messageCommandService = new ApplicationCommandService<MessageCommandContext>();
 
@@ -59,7 +67,6 @@ internal class Program
         await client.StartAsync();
         await client.ReadyAsync;
         await manager.CreateCommandsAsync(client.Rest, client.ApplicationId!.Value);
-
         client.InteractionCreate += async interaction =>
         {
             if (interaction is not SlashCommandInteraction slashCommandInteraction)
