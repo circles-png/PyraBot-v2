@@ -45,8 +45,20 @@ internal class Program
             return default;
         };
 
-        var applicationCommandService = new ApplicationCommandService<SlashCommandContext>();
-        applicationCommandService.AddModules(Assembly.GetEntryAssembly()!);
+        var slashCommandService = new ApplicationCommandService<SlashCommandContext>();
+        var messageCommandService = new ApplicationCommandService<MessageCommandContext>();
+
+        ApplicationCommandServiceManager manager = new();
+        manager.AddService(slashCommandService);
+        manager.AddService(messageCommandService);
+
+        var assembly = Assembly.GetEntryAssembly()!;
+        slashCommandService.AddModules(assembly);
+        messageCommandService.AddModules(assembly);
+
+        await client.StartAsync();
+        await client.ReadyAsync;
+        await manager.CreateCommandsAsync(client.Rest, client.ApplicationId!.Value);
 
         client.InteractionCreate += async interaction =>
         {
@@ -54,17 +66,13 @@ internal class Program
                 return;
             try
             {
-                await applicationCommandService.ExecuteAsync(new SlashCommandContext(slashCommandInteraction, client));
+                await slashCommandService.ExecuteAsync(new SlashCommandContext(slashCommandInteraction, client));
             }
             catch (Exception exception)
             {
                 await interaction.SendResponseAsync(InteractionCallback.ChannelMessageWithSource($"Error: {exception.Message}"));
             }
         };
-
-        await client.StartAsync();
-        await client.ReadyAsync;
-        await applicationCommandService.CreateCommandsAsync(client.Rest, client.ApplicationId!.Value);
 
         await Task.Delay(-1);
     }

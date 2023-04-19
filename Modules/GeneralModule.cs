@@ -10,4 +10,9 @@ public class GeneralModule : ApplicationCommandModule<SlashCommandContext>
     {
         return RespondAsync(InteractionCallback.ChannelMessageWithSource($"Pong!")); //todo: add latency
     }
+
+    // [SlashCommand("invite", "Want to invite me to your server? Use this command to invite me.")]
+    // public Task Invite()
+    // {
+    // }
 }
