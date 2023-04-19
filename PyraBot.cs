@@ -5,6 +5,7 @@ using NetCord.Gateway;
 using NetCord.Rest;
 using NetCord.Services.ApplicationCommands;
 using PyraBot.Models;
+using Serilog;
 
 namespace PyraBot;
 
@@ -31,6 +32,12 @@ internal class PyraBot
     }
     private static async Task Main()
     {
+        Log.Logger = new LoggerConfiguration()
+            .WriteTo.Console()
+            .WriteTo.File("Logs/PyraBot.log")
+            .MinimumLevel.Verbose()
+            .CreateLogger();
+
         var client = new GatewayClient(
             new(TokenType.Bot, Configuration.Token!),
             new()
@@ -41,31 +48,21 @@ internal class PyraBot
 
         client.Log += message =>
         {
-            Console.WriteLine(message);
+            Log.Verbose(message.ToString());
             return default;
         };
 
-        await
-            (
-                await client.Rest
-                    .GetGuildAsync((ulong)Configuration.GuildID!)
-            )
-            .BulkOverwriteApplicationCommandsAsync(575622700001918976, new List<ApplicationCommandProperties>(), new());
-
         var slashCommandService = new ApplicationCommandService<SlashCommandContext>();
-        var messageCommandService = new ApplicationCommandService<MessageCommandContext>();
 
         ApplicationCommandServiceManager manager = new();
         manager.AddService(slashCommandService);
-        manager.AddService(messageCommandService);
 
         var assembly = Assembly.GetEntryAssembly()!;
         slashCommandService.AddModules(assembly);
-        messageCommandService.AddModules(assembly);
 
         await client.StartAsync();
         await client.ReadyAsync;
-        await manager.CreateCommandsAsync(client.Rest, client.ApplicationId!.Value);
+        await manager.CreateCommandsAsync(client.Rest, client.ApplicationId!.Value, true);
 
         client.InteractionCreate += async interaction =>
         {
@@ -75,14 +72,13 @@ internal class PyraBot
                     interaction switch
                     {
                         SlashCommandInteraction slashCommandInteraction => slashCommandService.ExecuteAsync(new(slashCommandInteraction, client)),
-                        MessageCommandInteraction messageCommandInteraction => messageCommandService.ExecuteAsync(new(messageCommandInteraction, client)),
                         _ => throw new("Invalid interaction.")
                     }
                 );
             }
             catch (Exception exception)
             {
-                await interaction.SendResponseAsync(InteractionCallback.ChannelMessageWithSource($"Error: {exception.Message}"));
+                await interaction.SendResponseAsync(InteractionCallback.ChannelMessageWithSource($"uhm acktually {exception.Message.ToLower()}"));
             }
         };
 

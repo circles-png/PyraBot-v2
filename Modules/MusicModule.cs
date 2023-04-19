@@ -1,15 +1,16 @@
-using System.ComponentModel;
 using NetCord;
 using NetCord.Gateway;
 using NetCord.Gateway.Voice;
 using NetCord.Services.ApplicationCommands;
+using Serilog;
 
 namespace PyraBot.Modules;
 
 public class MusicModule : ApplicationCommandModule<SlashCommandContext>
 {
-    private static VoiceClient? voiceClient;
-    private static ulong? connectedChannelId;
+    private record VoiceInstance(VoiceClient VoiceClient, ulong ChannelId);
+    private static Dictionary<ulong, VoiceInstance> voiceInstances = new();
+
     private static async Task<VoiceClient> JoinAsync(GatewayClient client, ulong guildId, ulong channelId)
     {
         var stateTaskCompletionSource = new TaskCompletionSource<VoiceState>();
@@ -19,7 +20,6 @@ public class MusicModule : ApplicationCommandModule<SlashCommandContext>
         client.VoiceServerUpdate += HandleVoiceServerUpdateAsync;
 
         await client.UpdateVoiceStateAsync(new(guildId, channelId));
-        connectedChannelId = channelId;
 
         var timeout = TimeSpan.FromSeconds(1);
         VoiceState state;
@@ -45,6 +45,13 @@ public class MusicModule : ApplicationCommandModule<SlashCommandContext>
                 RedirectInputStreams = true,
             }
         );
+
+        voiceClient.Disconnected += (willReconnect) =>
+        {
+            if (!willReconnect)
+                voiceInstances.Remove(guildId);
+            return default;
+        };
 
         await voiceClient.StartAsync();
         await voiceClient.ReadyAsync;
@@ -72,28 +79,42 @@ public class MusicModule : ApplicationCommandModule<SlashCommandContext>
         }
     }
 
-    [SlashCommand("join", "Tell me to join your voice channel.")]
-    public async Task Join()
+    [SlashCommand("join", "Tell me to join your voice channel.", GuildId = 943394644786561064)]
+    public async Task Join(VoiceGuildChannel? channel = null)
     {
-        if (!Context.Guild!.VoiceStates.TryGetValue(Context.User.Id, out var userVoiceState))
-            throw new("You aren't connected to a voice channel!");
-        if (userVoiceState.ChannelId == connectedChannelId)
-            throw new("I'm already connected to that channel!");
-        if (connectedChannelId is not null)
-        {
-            await (voiceClient ?? throw new("Connection already closed.")).CloseAsync();
-            voiceClient = null;
-        }
-        voiceClient ??= await JoinAsync(
-            Context.Client,
-            Context.Guild!.Id,
-            userVoiceState.ChannelId ?? throw new("I couldn't find that channel!")
-        );
-        voiceClient.Disconnected += async (ex) =>
-        {
-            await RespondAsync(InteractionCallback.ChannelMessageWithSource("Disconnected from voice!"));
-            connectedChannelId = null;
-        };
-        await RespondAsync(InteractionCallback.ChannelMessageWithSource($"Joined you in <#{connectedChannelId}>!"));
+        if (channel is null)
+            if (Context.Guild!.VoiceStates.TryGetValue(Context.User.Id, out var userVoiceState))
+                channel = (Context.Guild.Channels[userVoiceState.ChannelId.GetValueOrDefault()] as VoiceGuildChannel)!;
+            else
+                throw new("You aren't connected to a voice channel!");
+
+        var userChannelId = channel.Id;
+        if (voiceInstances.ContainsKey(Context.Guild!.Id))
+            throw new("I'm already connected to a voice channel!");
+        else
+            voiceInstances.Add(
+                Context.Guild!.Id,
+                new(
+                    await JoinAsync(
+                        Context.Client,
+                        Context.Guild.Id,
+                        userChannelId
+                    ),
+                    userChannelId
+                )
+            );
+        await RespondAsync(InteractionCallback.ChannelMessageWithSource
+            ($"Joined you in <#{userChannelId}>!"));
+    }
+
+    [SlashCommand("leave", "Tell me to leave the voice channel.", GuildId = 943394644786561064)]
+    public async Task Leave()
+    {
+        if (!voiceInstances.TryGetValue(Context.Guild!.Id, out var voiceInstance))
+            throw new("I'm not connected to a voice channel!");
+        await Context.Client.UpdateVoiceStateAsync(new(Context.Guild.Id, null));
+        await voiceInstance.VoiceClient.CloseAsync();
+        voiceInstances.Remove(Context.Guild.Id);
+        await RespondAsync(InteractionCallback.ChannelMessageWithSource("Left the voice channel!"));
     }
 }

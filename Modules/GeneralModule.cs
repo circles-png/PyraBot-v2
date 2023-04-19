@@ -5,7 +5,7 @@ namespace PyraBot.Modules;
 
 public class GeneralModule : ApplicationCommandModule<SlashCommandContext>
 {
-    [SlashCommand("ping", "Use a high-tech timing device to measure the lag between me and Discord.")]
+    [SlashCommand("ping", "Use a high-tech timing device to measure the lag between me and Discord.", GuildId = 943394644786561064)]
     public Task Ping()
     {
         return RespondAsync(InteractionCallback.ChannelMessageWithSource
@@ -19,7 +19,7 @@ public class GeneralModule : ApplicationCommandModule<SlashCommandContext>
             ));
     }
 
-    [SlashCommand("invite", "Want to invite me to your server? Use this command to invite me.")]
+    [SlashCommand("invite", "Want to invite me to your server? Use this command to invite me.", GuildId = 943394644786561064)]
     public Task Invite()
     {
         return RespondAsync(InteractionCallback.ChannelMessageWithSource
