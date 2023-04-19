@@ -7,4 +7,5 @@ public class Configuration
     public string? InviteLink { get; set; }
     public ulong? GuildID { get; set; }
     public string? Activity { get; set; }
+    public string? Prefix { get; set; }
 }

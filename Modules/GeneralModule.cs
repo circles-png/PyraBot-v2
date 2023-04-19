@@ -8,11 +8,29 @@ public class GeneralModule : ApplicationCommandModule<SlashCommandContext>
     [SlashCommand("ping", "Use a high-tech timing device to measure the lag between me and Discord.")]
     public Task Ping()
     {
-        return RespondAsync(InteractionCallback.ChannelMessageWithSource($"Pong!")); //todo: add latency
+        return RespondAsync(InteractionCallback.ChannelMessageWithSource
+            (
+                $"""
+                    Pong! {
+                        (
+                            Context.Client.Latency
+                                ?? throw new ("I couldn't get the latency. I'm either offline or Discord is down.")
+                        )
+                        .TotalMilliseconds
+                    }ms from me to Discord.
+                """
+            ));
     }
 
-    // [SlashCommand("invite", "Want to invite me to your server? Use this command to invite me.")]
-    // public Task Invite()
-    // {
-    // }
+    [SlashCommand("invite", "Want to invite me to your server? Use this command to invite me.")]
+    public Task Invite()
+    {
+        return RespondAsync(InteractionCallback.ChannelMessageWithSource
+            (
+                $"""
+                    Invite me to your server with this link:
+                    {PyraBot.Configuration.InviteLink}
+                """
+            ));
+    }
 }

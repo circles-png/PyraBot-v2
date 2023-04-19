@@ -8,9 +8,9 @@ using PyraBot.Models;
 
 namespace PyraBot;
 
-internal class Program
+internal class PyraBot
 {
-    private static Configuration Configuration
+    internal static Configuration Configuration
     {
         get
         {
@@ -46,7 +46,7 @@ internal class Program
             return default;
         };
 
-        await 
+        await
             (
                 await client.Rest
                     .GetGuildAsync((ulong)configuration.GuildID!)
@@ -67,13 +67,19 @@ internal class Program
         await client.StartAsync();
         await client.ReadyAsync;
         await manager.CreateCommandsAsync(client.Rest, client.ApplicationId!.Value);
+
         client.InteractionCreate += async interaction =>
         {
-            if (interaction is not SlashCommandInteraction slashCommandInteraction)
-                return;
             try
             {
-                await slashCommandService.ExecuteAsync(new SlashCommandContext(slashCommandInteraction, client));
+                await (
+                    interaction switch
+                    {
+                        SlashCommandInteraction slashCommandInteraction => slashCommandService.ExecuteAsync(new SlashCommandContext(slashCommandInteraction, client)),
+                        MessageCommandInteraction messageCommandInteraction => messageCommandService.ExecuteAsync(new MessageCommandContext(messageCommandInteraction, client)),
+                        _ => throw new("Invalid interaction.")
+                    }
+                );
             }
             catch (Exception exception)
             {
