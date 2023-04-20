@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="CliWrap" Version="3.6.0" />
     <PackageReference Include="NetCord" Version="1.0.0-alpha.173" />
     <PackageReference Include="NetCord.Services" Version="1.0.0-alpha.96" />
     <PackageReference Include="Serilog" Version="2.12.0" />

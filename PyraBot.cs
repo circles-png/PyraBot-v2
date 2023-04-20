@@ -2,7 +2,6 @@
 using System.Text.Json;
 using NetCord;
 using NetCord.Gateway;
-using NetCord.Rest;
 using NetCord.Services.ApplicationCommands;
 using PyraBot.Models;
 using Serilog;

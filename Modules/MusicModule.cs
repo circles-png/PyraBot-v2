@@ -2,10 +2,7 @@ using System.Diagnostics;
 using NetCord;
 using NetCord.Gateway;
 using NetCord.Gateway.Voice;
-using NetCord.Services;
 using NetCord.Services.ApplicationCommands;
-using Serilog;
-using Serilog.Core;
 
 namespace PyraBot.Modules;
 
@@ -116,7 +113,6 @@ public class MusicModule : ApplicationCommandModule<SlashCommandContext>
             throw new("I'm not connected to a voice channel!");
         await Context.Client.UpdateVoiceStateAsync(new(Context.Guild.Id, null));
         await voiceInstance.VoiceClient.CloseAsync();
-        voiceInstance.OpusStream?.Dispose();
         voiceInstances.Remove(Context.Guild.Id);
         await RespondAsync(InteractionCallback.ChannelMessageWithSource("Left the voice channel!"));
     }
@@ -130,33 +126,24 @@ public class MusicModule : ApplicationCommandModule<SlashCommandContext>
 
         var voiceInstance = voiceInstances[Context.Guild!.Id];
         var outputStream = voiceInstance.VoiceClient.CreateOutputStream();
-        var opusStream = voiceInstance.OpusStream = new OpusEncodeStream(outputStream, VoiceChannels.Stereo, OpusApplication.Audio);
+        var opusStream = new OpusEncodeStream(outputStream, VoiceChannels.Stereo, OpusApplication.Audio);
 
         var ffmpeg = Process.Start(
-            new ProcessStartInfo()
+            new ProcessStartInfo(
+                "sh",
+                $"-c \"yt-dlp ytsearch1:\\\"{query}\\\" -f bestaudio -o - "
+                    + "| ffmpeg -i pipe:0 -ac 2 -f s16le -ar 48000 pipe:1\"")
             {
-                FileName = "sh",
-                Arguments = $"-c \"yt-dlp ytsearch1:\\\"{query}\\\" -f bestaudio -o - | ffmpeg -i pipe:0 -ac 2 -f s16le -ar 48000 pipe:1\"",
-                RedirectStandardOutput = true
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
             }
         )!;
 
-        var baseStream = ffmpeg.StandardOutput.BaseStream;
-        await baseStream.CopyToAsync(opusStream);
+        await ffmpeg.StandardOutput.BaseStream.CopyToAsync(opusStream);
         await opusStream.FlushAsync();
-        await baseStream.DisposeAsync();
+
+        ffmpeg.Dispose();
     }
 
-    private struct VoiceInstance
-    {
-        public VoiceClient VoiceClient { get; }
-        public ulong ChannelId { get; }
-        public Stream? OpusStream { get; set; }
-
-        public VoiceInstance(VoiceClient voiceClient, ulong channelId)
-        {
-            VoiceClient = voiceClient;
-            ChannelId = channelId;
-        }
-    }
+    private readonly record struct VoiceInstance(VoiceClient VoiceClient, ulong ChannelId);
 }
