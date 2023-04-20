@@ -11,7 +11,7 @@ namespace PyraBot.Modules;
 
 public class MusicModule : ApplicationCommandModule<SlashCommandContext>
 {
-    private static Dictionary<ulong, VoiceInstance> voiceInstances = new();
+    private static readonly Dictionary<ulong, VoiceInstance> voiceInstances = new();
 
     private static async Task<VoiceClient> JoinAsync(GatewayClient client, ulong guildId, ulong channelId)
     {
@@ -116,11 +116,12 @@ public class MusicModule : ApplicationCommandModule<SlashCommandContext>
             throw new("I'm not connected to a voice channel!");
         await Context.Client.UpdateVoiceStateAsync(new(Context.Guild.Id, null));
         await voiceInstance.VoiceClient.CloseAsync();
+        voiceInstance.OpusStream?.Dispose();
         voiceInstances.Remove(Context.Guild.Id);
         await RespondAsync(InteractionCallback.ChannelMessageWithSource("Left the voice channel!"));
     }
 
-    [SlashCommand("play", "Play some fire beats in your voice channel!")]
+    [SlashCommand("play", "Play some fire beats in your voice channel!", GuildId = 943394644786561064)]
     public async Task PlayAsync([SlashCommandParameter(Name = "query", Description = "Text to search with.")] string query)
     {
         if (!voiceInstances.ContainsKey(Context.Guild!.Id))
@@ -128,11 +129,10 @@ public class MusicModule : ApplicationCommandModule<SlashCommandContext>
         await RespondAsync(InteractionCallback.ChannelMessageWithSource($"Searching for \"**{query}**\"..."));
 
         var voiceInstance = voiceInstances[Context.Guild!.Id];
-        var outputStream = voiceInstance.OutputStream = voiceInstance.VoiceClient.CreateOutputStream();
+        var outputStream = voiceInstance.VoiceClient.CreateOutputStream();
+        var opusStream = voiceInstance.OpusStream = new OpusEncodeStream(outputStream, VoiceChannels.Stereo, OpusApplication.Audio);
 
-        OpusEncodeStream opusStream = new(outputStream, VoiceChannels.Stereo, OpusApplication.Audio);
-
-        using var ffmpeg = Process.Start(
+        var ffmpeg = Process.Start(
             new ProcessStartInfo()
             {
                 FileName = "sh",
@@ -141,15 +141,17 @@ public class MusicModule : ApplicationCommandModule<SlashCommandContext>
             }
         )!;
 
-        await ffmpeg.StandardOutput.BaseStream.CopyToAsync(opusStream);
+        var baseStream = ffmpeg.StandardOutput.BaseStream;
+        await baseStream.CopyToAsync(opusStream);
         await opusStream.FlushAsync();
+        await baseStream.DisposeAsync();
     }
 
     private struct VoiceInstance
     {
         public VoiceClient VoiceClient { get; }
         public ulong ChannelId { get; }
-        public Stream? OutputStream { get; set; }
+        public Stream? OpusStream { get; set; }
 
         public VoiceInstance(VoiceClient voiceClient, ulong channelId)
         {
