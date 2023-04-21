@@ -1,13 +1,16 @@
 using System.Diagnostics;
+using CliWrap;
 using NetCord;
 using NetCord.Gateway;
 using NetCord.Gateway.Voice;
 using NetCord.Services.ApplicationCommands;
+using Serilog;
 
 namespace PyraBot.Modules;
 
 public class MusicModule : ApplicationCommandModule<SlashCommandContext>
 {
+    private const long GuildId = 943394644786561064;
     private static readonly Dictionary<ulong, VoiceInstance> voiceInstances = new();
 
     private static async Task<VoiceClient> JoinAsync(GatewayClient client, ulong guildId, ulong channelId)
@@ -78,8 +81,7 @@ public class MusicModule : ApplicationCommandModule<SlashCommandContext>
         }
     }
 
-    [SlashCommand("join", "Tell me to join a voice channel.", GuildId = 943394644786561064)]
-    public async Task Join(VoiceGuildChannel? channel = null)
+    private async Task JoinAsync(bool silent = false, VoiceGuildChannel? channel = null)
     {
         if (channel is null)
             if (Context.Guild!.VoiceStates.TryGetValue(Context.User.Id, out var userVoiceState))
@@ -90,23 +92,34 @@ public class MusicModule : ApplicationCommandModule<SlashCommandContext>
         var userChannelId = channel.Id;
         if (voiceInstances.ContainsKey(Context.Guild!.Id))
             throw new("I'm already connected to a voice channel!");
-        else
-            voiceInstances.Add(
-                Context.Guild!.Id,
-                new(
-                    await JoinAsync(
-                        Context.Client,
-                        Context.Guild.Id,
-                        userChannelId
-                    ),
+        voiceInstances.Add(
+            Context.Guild!.Id,
+            new(
+                await JoinAsync(
+                    Context.Client,
+                    Context.Guild.Id,
                     userChannelId
-                )
-            );
+                ),
+                userChannelId
+            )
+        );
+        if (silent) return;
         await RespondAsync(InteractionCallback.ChannelMessageWithSource
             ($"Joined you in <#{userChannelId}>!"));
     }
+    [SlashCommand("join", "Tell me to join a voice channel.", GuildId = GuildId)]
+    public async Task Join(
+        [
+            SlashCommandParameter
+            (
+                Name = "channel",
+                Description = "Channel to join, if you're not in one."
+            )
+        ] VoiceGuildChannel? channel = null
+    )
+        => await JoinAsync(false, channel);
 
-    [SlashCommand("leave", "Tell me to leave the voice channel.", GuildId = 943394644786561064)]
+    [SlashCommand("leave", "Tell me to leave the voice channel.", GuildId = GuildId)]
     public async Task Leave()
     {
         if (!voiceInstances.TryGetValue(Context.Guild!.Id, out var voiceInstance))
@@ -117,33 +130,54 @@ public class MusicModule : ApplicationCommandModule<SlashCommandContext>
         await RespondAsync(InteractionCallback.ChannelMessageWithSource("Left the voice channel!"));
     }
 
-    [SlashCommand("play", "Play some fire beats in your voice channel!", GuildId = 943394644786561064)]
-    public async Task PlayAsync([SlashCommandParameter(Name = "query", Description = "Text to search with.")] string query)
+    [SlashCommand("play", "Play some fire beats in your voice channel!", GuildId = GuildId)]
+    public async Task Play(
+        [
+            SlashCommandParameter
+            (
+                Name = "query",
+                Description = "Text to search with"
+            )
+        ] string query
+    )
     {
         if (!voiceInstances.ContainsKey(Context.Guild!.Id))
-            throw new("I need to be in a voice channel first!");
-        await RespondAsync(InteractionCallback.ChannelMessageWithSource($"Searching for \"**{query}**\"..."));
+            await JoinAsync(true);
+        await RespondAsync(InteractionCallback.ChannelMessageWithSource($"Playing \"**{query}**\"!"));
 
         var voiceInstance = voiceInstances[Context.Guild!.Id];
         var outputStream = voiceInstance.VoiceClient.CreateOutputStream();
         var opusStream = new OpusEncodeStream(outputStream, VoiceChannels.Stereo, OpusApplication.Audio);
 
-        var ffmpeg = Process.Start(
-            new ProcessStartInfo(
-                "sh",
-                $"-c \"yt-dlp ytsearch1:\\\"{query}\\\" -f bestaudio -o - "
-                    + "| ffmpeg -i pipe:0 -ac 2 -f s16le -ar 48000 pipe:1\"")
-            {
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-            }
-        )!;
+        await (
+            Cli.Wrap("yt-dlp")
+                .WithArguments($"ytsearch1:\"{query}\" -o -")
+                .WithStandardInputPipe(PipeSource.FromStream(Stream.Null))
+                .WithStandardErrorPipe(PipeTarget.ToStream(Stream.Null))
+                .WithValidation(CommandResultValidation.None)
+            |
+            Cli.Wrap("ffmpeg")
+                .WithArguments("-i pipe: -ac 2 -f s16le -ar 48000 pipe:1")
+                .WithStandardErrorPipe(PipeTarget.ToStream(Stream.Null))
+                .WithValidation(CommandResultValidation.None)
+            |
+            PipeTarget.ToStream(opusStream, false)
+        ).ExecuteAsync();
 
-        await ffmpeg.StandardOutput.BaseStream.CopyToAsync(opusStream);
         await opusStream.FlushAsync();
-
-        ffmpeg.Dispose();
+        await opusStream.DisposeAsync();
     }
 
-    private readonly record struct VoiceInstance(VoiceClient VoiceClient, ulong ChannelId);
+    private struct VoiceInstance
+    {
+        public VoiceClient VoiceClient { get; }
+        public ulong ChannelId { get; }
+        public CancellationTokenSource? CancellationTokenSource { get; set; }
+
+        public VoiceInstance(VoiceClient voiceClient, ulong channelId)
+        {
+            VoiceClient = voiceClient;
+            ChannelId = channelId;
+        }
+    }
 }

@@ -2,6 +2,7 @@
 using System.Text.Json;
 using NetCord;
 using NetCord.Gateway;
+using NetCord.Rest;
 using NetCord.Services.ApplicationCommands;
 using PyraBot.Models;
 using Serilog;
@@ -47,7 +48,7 @@ internal class PyraBot
 
         client.Log += message =>
         {
-            Log.Verbose(message.ToString());
+            Log.Information(message.ToString());
             return default;
         };
 
@@ -77,6 +78,7 @@ internal class PyraBot
             }
             catch (Exception exception)
             {
+                Log.Error(exception, "An exception occurred while executing an interaction.");
                 await interaction.SendResponseAsync(InteractionCallback.ChannelMessageWithSource($"uhm acktually {exception.Message.ToLower()}"));
             }
         };
